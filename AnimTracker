@@ -1,0 +1,131 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+
+-- UI Creation
+local ScreenGui = Instance.new("ScreenGui")
+local MainFrame = Instance.new("Frame")
+local Title = Instance.new("TextLabel")
+local LogScroll = Instance.new("ScrollingFrame")
+local UIListLayout = Instance.new("UIListLayout")
+local PlayerList = Instance.new("ScrollingFrame")
+local RefreshBtn = Instance.new("TextButton")
+local MinimizeBtn = Instance.new("TextButton")
+local CloseBtn = Instance.new("TextButton")
+
+-- State
+local TargetPlayer = nil
+local Connections = {}
+local IsMinimized = false
+
+ScreenGui.Name = "AnimLogger_v1"
+ScreenGui.Parent = game:GetService("CoreGui")
+
+-- Frame Styling (Dark Theme)
+MainFrame.Size = UDim2.new(0, 400, 0, 300)
+MainFrame.Position = UDim2.new(0.5, -200, 0.5, -150)
+MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+MainFrame.BorderSizePixel = 0
+MainFrame.Active = true
+MainFrame.Draggable = true
+MainFrame.Parent = ScreenGui
+
+Title.Size = UDim2.new(1, -90, 0, 30)
+Title.Text = "ANIMATION LOGGER 🤑"
+Title.TextColor3 = Color3.new(1, 1, 1)
+Title.BackgroundTransparency = 1
+Title.Parent = MainFrame
+
+-- Buttons
+local function createBtn(text, pos, color)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0, 30, 0, 30)
+    btn.Position = pos
+    btn.Text = text
+    btn.BackgroundColor3 = color
+    btn.Parent = MainFrame
+    return btn
+end
+
+CloseBtn = createBtn("X", UDim2.new(1, -30, 0, 0), Color3.fromRGB(150, 50, 50))
+MinimizeBtn = createBtn("-", UDim2.new(1, -65, 0, 0), Color3.fromRGB(70, 70, 70))
+RefreshBtn = createBtn("↺", UDim2.new(1, -100, 0, 0), Color3.fromRGB(50, 150, 50))
+
+-- Logs & Lists
+LogScroll.Size = UDim2.new(0.65, -10, 1, -40)
+LogScroll.Position = UDim2.new(0.35, 5, 0, 35)
+LogScroll.CanvasSize = UDim2.new(0, 0, 10, 0)
+LogScroll.Parent = MainFrame
+
+UIListLayout.Parent = LogScroll
+UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+PlayerList.Size = UDim2.new(0.35, -5, 1, -40)
+PlayerList.Position = UDim2.new(0, 5, 0, 35)
+PlayerList.CanvasSize = UDim2.new(0, 0, 2, 0)
+PlayerList.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+PlayerList.Parent = MainFrame
+
+local PLayLayout = Instance.new("UIListLayout")
+PLayLayout.Parent = PlayerList
+
+-- Logic Functions
+local function logAnim(name, id)
+    local entry = Instance.new("TextLabel")
+    entry.Size = UDim2.new(1, 0, 0, 20)
+    entry.Text = string.format("[%s] %s", name, id)
+    entry.TextColor3 = Color3.fromRGB(200, 200, 200)
+    entry.BackgroundTransparency = 1
+    entry.TextXAlignment = Enum.TextXAlignment.Left
+    entry.Parent = LogScroll
+    LogScroll.CanvasPosition = Vector2.new(0, LogScroll.AbsoluteCanvasSize.Y)
+end
+
+local function watchPlayer(plr)
+    for _, v in pairs(Connections) do v:Disconnect() end
+    TargetPlayer = plr
+    logAnim("SYSTEM", "Watching: " .. plr.Name)
+    
+    local function connectTrack(char)
+        local animator = char:WaitForChild("Humanoid"):WaitForChild("Animator")
+        Connections["Anim"] = animator.AnimationPlayed:Connect(function(track)
+            local name = track.Animation.Name:lower()
+            -- Filtering movement junk
+            if not name:find("idle") and not name:find("walk") and not name:find("run") and not name:find("swim") then
+                logAnim(track.Animation.Name, track.Animation.AnimationId)
+            end
+        end)
+    end
+    
+    if plr.Character then connectTrack(plr.Character) end
+    Connections["Char"] = plr.CharacterAdded:Connect(connectTrack)
+end
+
+local function refreshPlayers()
+    for _, v in pairs(PlayerList:GetChildren()) do if v:IsA("TextButton") then v:Destroy() end end
+    for _, plr in pairs(Players:GetPlayers()) do
+        local b = Instance.new("TextButton")
+        b.Size = UDim2.new(1, 0, 0, 25)
+        b.Text = plr.Name
+        b.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+        b.TextColor3 = Color3.new(1, 1, 1)
+        b.MouseButton1Click:Connect(function() watchPlayer(plr) end)
+        b.Parent = PlayerList
+    end
+end
+
+-- UI Controls
+MinimizeBtn.MouseButton1Click:Connect(function()
+    IsMinimized = not IsMinimized
+    LogScroll.Visible = not IsMinimized
+    PlayerList.Visible = not IsMinimized
+    MainFrame.Size = IsMinimized and UDim2.new(0, 400, 0, 30) or UDim2.new(0, 400, 0, 300)
+end)
+
+CloseBtn.MouseButton1Click:Connect(function()
+    for _, v in pairs(Connections) do v:Disconnect() end
+    ScreenGui:Destroy()
+end)
+
+RefreshBtn.MouseButton1Click:Connect(refreshPlayers)
+
+refreshPlayers()
