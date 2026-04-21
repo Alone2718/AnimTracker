@@ -1,194 +1,184 @@
 local Players = game:GetService("Players")
-local Clipboard = setclipboard or print -- Uses executor clipboard or prints if unavailable
+local CoreGui = game:GetService("CoreGui")
+local Clipboard = setclipboard or print
 
+-- Main UI Setup
 local ScreenGui = Instance.new("ScreenGui")
-local MainFrame = Instance.new("Frame")
-local UICorner = Instance.new("UICorner")
-local TopBar = Instance.new("Frame")
-local Title = Instance.new("TextLabel")
-local LogScroll = Instance.new("ScrollingFrame")
-local UIListLayout = Instance.new("UIListLayout")
-local PlayerList = Instance.new("ScrollingFrame")
-local RefreshBtn = Instance.new("TextButton")
-local MinimizeBtn = Instance.new("TextButton")
-local CloseBtn = Instance.new("TextButton")
+ScreenGui.Name = "AnimPro_2026"
+ScreenGui.Parent = CoreGui
 
--- State Logic
-local TargetPlayer = nil
-local Connections = {}
-local IsMinimized = false
+local Main = Instance.new("Frame")
+Main.Size = UDim2.new(0, 500, 0, 350)
+Main.Position = UDim2.new(0.5, -250, 0.5, -175)
+Main.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+Main.BorderSizePixel = 0
+Main.Active = true
+Main.Draggable = true
+Main.Parent = ScreenGui
 
-ScreenGui.Name = "CleanAnimLogger"
-ScreenGui.Parent = game:GetService("CoreGui")
-ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+local Corner = Instance.new("UICorner")
+Corner.CornerRadius = UDim.new(0, 10)
+Corner.Parent = Main
 
--- Main Frame Styling
-MainFrame.Size = UDim2.new(0, 450, 0, 320)
-MainFrame.Position = UDim2.new(0.5, -225, 0.5, -160)
-MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
-MainFrame.BorderSizePixel = 0
-MainFrame.Active = true
-MainFrame.Draggable = true
-MainFrame.Parent = ScreenGui
+-- Sidebar for Players
+local Sidebar = Instance.new("ScrollingFrame")
+Sidebar.Size = UDim2.new(0.3, 0, 1, -45)
+Sidebar.Position = UDim2.new(0, 5, 0, 40)
+Sidebar.BackgroundTransparency = 1
+Sidebar.ScrollBarThickness = 2
+Sidebar.Parent = Main
 
-UICorner.CornerRadius = Tool.new(0, 8)
-UICorner.Parent = MainFrame
+local SideLayout = Instance.new("UIListLayout")
+SideLayout.Parent = Sidebar
+SideLayout.Padding = UDim.new(0, 5)
+
+-- Log Container
+local Container = Instance.new("Frame")
+Container.Size = UDim2.new(0.7, -15, 1, -45)
+Container.Position = UDim2.new(0.3, 5, 0, 40)
+Container.BackgroundTransparency = 1
+Container.Parent = Main
 
 -- Top Bar
+local TopBar = Instance.new("Frame")
 TopBar.Size = UDim2.new(1, 0, 0, 35)
-TopBar.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+TopBar.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 TopBar.BorderSizePixel = 0
-TopBar.Parent = MainFrame
+TopBar.Parent = Main
+Instance.new("UICorner", TopBar).CornerRadius = UDim.new(0, 10)
 
-local TopCorner = Instance.new("UICorner")
-TopCorner.CornerRadius = UDim.new(0, 8)
-TopCorner.Parent = TopBar
-
-Title.Size = UDim2.new(1, -110, 1, 0)
-Title.Position = UDim2.new(0, 10, 0, 0)
-Title.Text = "ANIMATION LOGGER 🤑"
-Title.TextColor3 = Color3.fromRGB(255, 255, 255)
-Title.TextXAlignment = Enum.TextXAlignment.Left
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, -120, 1, 0)
+Title.Position = UDim2.new(0, 15, 0, 0)
+Title.Text = "ANIMATION CAPTURE 🤑"
+Title.TextColor3 = Color3.new(1,1,1)
 Title.Font = Enum.Font.GothamBold
+Title.TextSize = 14
+Title.TextXAlignment = "Left"
 Title.BackgroundTransparency = 1
 Title.Parent = TopBar
 
--- Button Factory
-local function createBtn(text, pos, color)
-    local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(0, 28, 0, 28)
-    btn.Position = pos
-    btn.Text = text
-    btn.Font = Enum.Font.GothamBold
-    btn.TextColor3 = Color3.new(1,1,1)
-    btn.BackgroundColor3 = color
-    btn.Parent = TopBar
-    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
-    return btn
+-- Control Buttons
+local function ctrlBtn(txt, pos, color, callback)
+    local b = Instance.new("TextButton")
+    b.Size = UDim2.new(0, 25, 0, 25)
+    b.Position = pos
+    b.BackgroundColor3 = color
+    b.Text = txt
+    b.TextColor3 = Color3.new(1,1,1)
+    b.Font = Enum.Font.GothamBold
+    b.Parent = TopBar
+    Instance.new("UICorner", b).CornerRadius = UDim.new(0, 6)
+    b.MouseButton1Click:Connect(callback)
+    return b
 end
 
-CloseBtn = createBtn("✕", UDim2.new(1, -33, 0.5, -14), Color3.fromRGB(200, 60, 60))
-MinimizeBtn = createBtn("−", UDim2.new(1, -66, 0.5, -14), Color3.fromRGB(60, 60, 60))
-RefreshBtn = createBtn("↻", UDim2.new(1, -99, 0.5, -14), Color3.fromRGB(40, 120, 40))
+ctrlBtn("✕", UDim2.new(1, -30, 0, 5), Color3.fromRGB(180, 50, 50), function() ScreenGui:Destroy() end)
+ctrlBtn("↺", UDim2.new(1, -60, 0, 5), Color3.fromRGB(50, 120, 50), function() refresh() end)
 
--- Log Scroll (With Horizontal Support)
-LogScroll.Size = UDim2.new(0.65, -15, 1, -50)
-LogScroll.Position = UDim2.new(0.35, 10, 0, 45)
-LogScroll.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-LogScroll.BorderSizePixel = 0
-LogScroll.CanvasSize = UDim2.new(2, 0, 0, 0) -- Enabling Horizontal Scroll
-LogScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
-LogScroll.ScrollBarThickness = 6
-LogScroll.Parent = MainFrame
+-- Storage
+local PlayerLogs = {} -- Stores the ScrollingFrames for each player
+local CurrentVisibleLog = nil
 
-UIListLayout.Parent = LogScroll
-UIListLayout.Padding = UDim.new(0, 4)
+local function createLogEntry(parent, id)
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(1, -10, 0, 30)
+    frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    frame.Parent = parent
+    Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 4)
 
--- Player List
-PlayerList.Size = UDim2.new(0.35, -5, 1, -50)
-PlayerList.Position = UDim2.new(0, 5, 0, 45)
-PlayerList.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
-PlayerList.BorderSizePixel = 0
-PlayerList.Parent = MainFrame
-
-local PLayLayout = Instance.new("UIListLayout")
-PLayLayout.Parent = PlayerList
-PLayLayout.Padding = UDim.new(0, 2)
-
--- Function: Create Log Entry with Copy Button
-local function logAnim(name, id)
-    local entryFrame = Instance.new("Frame")
-    entryFrame.Size = UDim2.new(1, 0, 0, 25)
-    entryFrame.BackgroundTransparency = 1
-    entryFrame.Parent = LogScroll
+    local idText = Instance.new("TextLabel")
+    idText.Size = UDim2.new(1, -70, 1, 0)
+    idText.Position = UDim2.new(0, 10, 0, 0)
+    idText.Text = id:match("%d+") or id
+    idText.TextColor3 = Color3.fromRGB(0, 255, 150)
+    idText.Font = Enum.Font.Code
+    idText.TextSize = 14
+    idText.BackgroundTransparency = 1
+    idText.TextXAlignment = "Left"
+    idText.Parent = frame
 
     local copy = Instance.new("TextButton")
-    copy.Size = UDim2.new(0, 45, 0, 20)
-    copy.Position = UDim2.new(0, 0, 0, 2)
+    copy.Size = UDim2.new(0, 50, 0, 20)
+    copy.Position = UDim2.new(1, -55, 0, 5)
+    copy.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
     copy.Text = "COPY"
-    copy.BackgroundColor3 = Color3.fromRGB(0, 120, 200)
-    copy.TextColor3 = Color3.new(1,1,1)
     copy.Font = Enum.Font.Gotham
     copy.TextSize = 10
-    copy.Parent = entryFrame
+    copy.TextColor3 = Color3.new(1,1,1)
+    copy.Parent = frame
     Instance.new("UICorner", copy).CornerRadius = UDim.new(0, 4)
 
-    local label = Instance.new("TextLabel")
-    label.Size = UDim2.new(1, -55, 1, 0)
-    label.Position = UDim2.new(0, 50, 0, 0)
-    label.Text = string.format("[%s] ID: %s", name, id)
-    label.TextColor3 = Color3.fromRGB(220, 220, 220)
-    label.BackgroundTransparency = 1
-    label.TextXAlignment = Enum.TextXAlignment.Left
-    label.Font = Enum.Font.Gotham
-    label.TextSize = 12
-    label.Parent = entryFrame
-
     copy.MouseButton1Click:Connect(function()
-        local rawId = id:match("%d+")
-        Clipboard(rawId)
-        copy.Text = "DONE!"
-        task.wait(1)
+        Clipboard(idText.Text)
+        copy.Text = "OK!"
+        task.wait(0.5)
         copy.Text = "COPY"
     end)
+    
+    -- Auto-scroll to bottom
+    parent.CanvasPosition = Vector2.new(0, parent.AbsoluteCanvasSize.Y)
 end
 
--- Watching Logic
-local function watchPlayer(plr)
-    for _, v in pairs(Connections) do v:Disconnect() end
-    TargetPlayer = plr
-    logAnim("SYSTEM", "Watching " .. plr.Name)
+local function switchTab(plr)
+    if CurrentVisibleLog then CurrentVisibleLog.Visible = false end
     
-    local function connectTrack(char)
-        local hum = char:WaitForChild("Humanoid", 5)
-        local animator = hum and hum:WaitForChild("Animator", 5)
-        if animator then
-            Connections["Anim"] = animator.AnimationPlayed:Connect(function(track)
+    if not PlayerLogs[plr.UserId] then
+        local scroll = Instance.new("ScrollingFrame")
+        scroll.Size = UDim2.new(1, 0, 1, 0)
+        scroll.BackgroundTransparency = 1
+        scroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+        scroll.AutomaticCanvasSize = "Y"
+        scroll.ScrollBarThickness = 4
+        scroll.Visible = false
+        scroll.Parent = Container
+        
+        local layout = Instance.new("UIListLayout")
+        layout.Parent = scroll
+        layout.Padding = UDim.new(0, 5)
+        
+        PlayerLogs[plr.UserId] = scroll
+        
+        -- Start Watching
+        local function hook(char)
+            local animator = char:WaitForChild("Humanoid"):WaitForChild("Animator")
+            animator.AnimationPlayed:Connect(function(track)
                 local n = track.Animation.Name:lower()
-                local moveAnims = {"idle", "walk", "run", "swim", "jump", "fall", "climb"}
-                local isMove = false
-                for _, word in pairs(moveAnims) do if n:find(word) then isMove = true break end end
-                
-                if not isMove then
-                    logAnim(track.Animation.Name, track.Animation.AnimationId)
-                end
+                local move = {"idle", "walk", "run", "swim", "jump", "fall", "climb"}
+                for _, v in pairs(move) do if n:find(v) then return end end
+                createLogEntry(scroll, track.Animation.AnimationId)
             end)
         end
+        if plr.Character then task.spawn(hook, plr.Character) end
+        plr.CharacterAdded:Connect(hook)
     end
     
-    if plr.Character then connectTrack(plr.Character) end
-    Connections["Char"] = plr.CharacterAdded:Connect(connectTrack)
+    CurrentVisibleLog = PlayerLogs[plr.UserId]
+    CurrentVisibleLog.Visible = true
+    Title.Text = "WATCHING: " .. plr.Name:upper()
 end
 
--- Refresh List
-local function refreshPlayers()
-    for _, v in pairs(PlayerList:GetChildren()) do if v:IsA("TextButton") then v:Destroy() end end
+function refresh()
+    for _, v in pairs(Sidebar:GetChildren()) do if v:IsA("TextButton") then v:Destroy() end end
     for _, plr in pairs(Players:GetPlayers()) do
         local b = Instance.new("TextButton")
-        b.Size = UDim2.new(1, -4, 0, 28)
+        b.Size = UDim2.new(1, -10, 0, 30)
+        b.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
         b.Text = plr.Name
-        b.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-        b.TextColor3 = Color3.new(1, 1, 1)
+        b.TextColor3 = Color3.new(0.8, 0.8, 0.8)
         b.Font = Enum.Font.Gotham
         b.TextSize = 12
-        b.Parent = PlayerList
+        b.Parent = Sidebar
         Instance.new("UICorner", b).CornerRadius = UDim.new(0, 4)
-        b.MouseButton1Click:Connect(function() watchPlayer(plr) end)
+        
+        b.MouseButton1Click:Connect(function()
+            for _, other in pairs(Sidebar:GetChildren()) do 
+                if other:IsA("TextButton") then other.BackgroundColor3 = Color3.fromRGB(35, 35, 35) end 
+            end
+            b.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+            switchTab(plr)
+        end)
     end
 end
 
--- Buttons
-MinimizeBtn.MouseButton1Click:Connect(function()
-    IsMinimized = not IsMinimized
-    LogScroll.Visible = not IsMinimized
-    PlayerList.Visible = not IsMinimized
-    MainFrame.Size = IsMinimized and UDim2.new(0, 450, 0, 35) or UDim2.new(0, 450, 0, 320)
-end)
-
-CloseBtn.MouseButton1Click:Connect(function()
-    for _, v in pairs(Connections) do v:Disconnect() end
-    ScreenGui:Destroy()
-end)
-
-RefreshBtn.MouseButton1Click:Connect(refreshPlayers)
-refreshPlayers()
+refresh()
